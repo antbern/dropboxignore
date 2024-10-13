@@ -11,6 +11,7 @@ fn main() -> anyhow::Result<()> {
     //  - ignore said file (optional recursive)
     //  - unignore said file (optional recursive)
     //  - output statistics to stdout
+    //  - dry-run
 
     let folder = std::env::args().nth(1).expect("Please provide a folder");
     traverse_folder(&Path::new(&folder))?;
@@ -106,6 +107,7 @@ fn is_file_ignored(file: &Path) -> Result<bool> {
 }
 
 fn ignore_file(file: &Path) -> Result<()> {
-    println!("ignoring {:?}", file);
+    xattr::set(file, XATTR_DROPBOX_IGNORED, b"1")
+        .with_context(|| format!("set attribute for {file:?}"))?;
     Ok(())
 }
