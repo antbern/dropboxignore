@@ -1,0 +1,44 @@
+name: "Build for linux x86_64"
+on:
+  release:
+    types: [created]
+
+jobs:
+  release:
+    name: release linux x86_64
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Compile
+        shell: bash
+        run: |
+          RUSTFLAGS='-C target-feature=+crt-static' cargo build --release --target x86_64-unknown-linux-gnu
+
+      - run: cp target/x86_64-unknown-linux-gnu/release/dropboxignore .
+
+      - name: 'Compress binaries'
+        uses: a7ul/tar-action@v1.1.2
+        with:
+          command: c
+          files: |
+            dropboxignore
+            LICENSE
+            README.md
+          outPath: '${{ runner.temp }}/dropboxignore-x86_64-linux.tar.gz'
+
+      - name: 'Release binaries'
+        uses: ncipollo/release-action@v1
+        with:
+          allowUpdates: true
+          replacesArtifacts: true
+          artifacts: '${{ runner.temp }}/dropboxignore-x86_64-linux.tar.gz'
+          artifactErrorsFailBuild: true
+          prerelease: true
+
