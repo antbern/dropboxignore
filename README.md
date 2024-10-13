@@ -1,5 +1,7 @@
 # dropboxignore
 
+[![CI](https://github.com/antbern/dropboxignore/actions/workflows/rust.yaml/badge.svg)](https://github.com/antbern/dropboxignore/actions/workflows/rust.yaml)
+
 A small utility for dealing with ignored files when using `dropbox` on Linux.
 It introduces a simple `.dropboxignore` with the same contents as a standard `.gitignore` file
 that can be placed anywhere in the `dropbox` sync folder. When this program is run with the
@@ -27,6 +29,7 @@ Commands:
               use flag `--recursive` to un-ignore all files and subfolders as well.
 
 Optional Flags (all commands):
-  - `--dry-run`: does not apply any changes to the file system, only prints out what it would do if run without the flag.
+  - `--dry-run`: does not apply any changes to the file system, only prints out
+                 what it would do if run without the flag.
 
 ```
