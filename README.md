@@ -17,19 +17,17 @@ As an example of a `.dropboxignore` file, see the one [in this repo](./.dropboxi
 for keeping `dropbox` from syncing the rust `target/` folder containing build artifacts.
 
 ## Usage
-Command Reference
 ```
-./dropboxignore [command] [optional flags] [folder synced by dropbox]
+Usage: dropboxignore <COMMAND> [FLAGS] <FOLDER SYNCED BY DROPBOX>
 
 Commands:
-  - check: traverse and ignore files as depicted by the .dropboxignore files.
-  - ignore: ignore the specified file/folder
-            use flag `--recursive` to ignore all files and subfolders as well.
-  - unignore: un-ignore the specified file/folder
-              use flag `--recursive` to un-ignore all files and subfolders as well.
+  check      Traverse and ignore files as depicted by the .dropboxignore files.
+  ignore     Ignore the specified file/folder.
+  unignore   Unignore the specified file/folder.
 
-Optional Flags (all commands):
-  - `--dry-run`: does not apply any changes to the file system, only prints out
-                 what it would do if run without the flag.
-
+Options:
+  --dry-run        Do not apply any changes to the file system, only print out what it
+                   would do if run without the flag.
+  -r, --recursive  Apply ignore and unignore commands to all files and subfolders of the
+                   provided folder, recursively.
 ```

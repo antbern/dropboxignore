@@ -2,10 +2,17 @@
 name = "dropboxignore"
 version = "0.1.0"
 edition = "2021"
+license = "MIT"
+description = "A tool to use .dropboxignore files to exclude files from Dropbox syncing"
+authors = ["Anton Berneving"]
+keywords = ["dropbox", "dropboxignore"]
+categories = ["command-line-utilities", "filesystem"]
+repository = "https://github.com/antbern/dropboxignore"
+readme = "README.md"
 
 [dependencies]
 anyhow = "1.0"
 xattr = { version = "1.3.1", default-features = false, features = ["unsupported"] }
 
-# we really ony care about a subsert of this, but for now we need to bring in all the deps of it
-ignore = "0.4"
+# we really ony care about a subset of this, but for now we need to bring in all the deps of it
+ignore = { version = "0.4", default-features = false }

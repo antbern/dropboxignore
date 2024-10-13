@@ -15,15 +15,12 @@ fn main() -> anyhow::Result<()> {
 
     // command is the first argument
     let (command, args) = args.split_first().expect("Please provide a command");
-    // folder is the last argument, flags are in between
+    // input path is the last argument, flags are in between
     let (folder, flags) = args
         .split_last()
         .expect("Please provide a folder to operate on");
 
-    let folder = Path::new(&folder);
-    if !folder.is_dir() {
-        bail!("provided path {folder:?} is not a directory or it does not exist");
-    }
+    let input_path = Path::new(&folder);
 
     match command.as_str() {
         "ignore" | "unignore" => {
@@ -46,12 +43,18 @@ fn main() -> anyhow::Result<()> {
             };
 
             if is_recursive {
-                apply_recursively(folder, action)?;
+                if !input_path.is_dir() {
+                    bail!("provided path {input_path:?} is not a directory or it does not exist");
+                }
+                apply_recursively(input_path, action)?;
             } else {
-                action(folder)?;
+                action(input_path)?;
             }
         }
         "check" => {
+            if !input_path.is_dir() {
+                bail!("provided path {input_path:?} is not a directory or it does not exist");
+            }
             let mut is_dry_run = false;
             for flag in flags {
                 match flag.as_str() {
@@ -61,9 +64,9 @@ fn main() -> anyhow::Result<()> {
             }
 
             if is_dry_run {
-                check_folder::<DryRunAttributes>(folder)?;
+                check_folder::<DryRunAttributes>(input_path)?;
             } else {
-                check_folder::<FileSystemAttributes>(folder)?;
+                check_folder::<FileSystemAttributes>(input_path)?;
             }
         }
         _ => bail!("Unknown command: {}", command),
