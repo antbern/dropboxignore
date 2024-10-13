@@ -1,5 +1,6 @@
 use std::{
     collections::VecDeque,
+    os::linux::fs::MetadataExt,
     path::{Path, PathBuf},
 };
 
@@ -24,6 +25,13 @@ fn main() -> anyhow::Result<()> {
     Ok(())
 }
 
+#[derive(Debug, Default)]
+struct Stats {
+    files: u64,
+    directories: u64,
+    size: u64,
+}
+
 fn traverse_folder<A: AttributesIO>(folder: &Path) -> anyhow::Result<()> {
     let folder = std::path::absolute(folder)?;
     assert!(folder.is_dir());
@@ -32,7 +40,7 @@ fn traverse_folder<A: AttributesIO>(folder: &Path) -> anyhow::Result<()> {
     let mut todo: VecDeque<(Vec<Gitignore>, PathBuf)> = VecDeque::new();
     todo.push_back((Vec::new(), folder));
 
-    let mut count = 0;
+    let mut stats = Stats::default();
 
     while let Some((mut ignores, path)) = todo.pop_front() {
         assert!(path.is_dir(), "should only iterate over directories");
@@ -77,30 +85,46 @@ fn traverse_folder<A: AttributesIO>(folder: &Path) -> anyhow::Result<()> {
 
                 // since the file/folder is supposed to be ignored, we don't need to check it's children
                 continue;
-            } else {
+            } else if is_ignored {
                 //if file is ignored already, should maybe unignore it?
                 //Or should we policy that if a file is ignored, it should stay ignored? (perhaps
                 //easies in the beginning)
-                if is_ignored {
-                    println!(
-                        "file {:?} is ignored but it should not be according to the rules",
-                        path
-                    );
-                }
-            }
-
-            // traverse into the sub-directory
-            if is_dir {
-                todo.push_back((ignores.clone(), path));
+                println!(
+                    "file {:?} is ignored but it should not be according to the rules",
+                    path
+                );
             } else {
-                // this was a non-ignored file, count!
-                // (We can add measure of size here if we want to)
-                count += 1;
+                // file/folder is not ignored and should not be either
+
+                // only count files, not symlinks for now
+                let meta =
+                    std::fs::symlink_metadata(&path).with_context(|| path.display().to_string())?;
+                let size = meta.st_size(); // only works on linux
+
+                stats.size += size;
+
+                if is_dir {
+                    stats.directories += 1;
+
+                    // traverse into the sub-directory
+                    todo.push_back((ignores.clone(), path));
+                } else {
+                    // this was a non-ignored file, count!
+                    // (We can add measure of size here if we want to)
+
+                    stats.files += 1;
+                }
             }
         }
     }
 
-    dbg!(count);
+    println!(
+        "Stats:\nFiles: {}\nDirectories: {}\nSize: {:.2} MB, {:.2} GB",
+        stats.files,
+        stats.directories,
+        stats.size as f64 / 1024.0 / 1024.0,
+        stats.size as f64 / 1024.0 / 1024.0 / 1024.0
+    );
 
     Ok(())
 }
