@@ -14,12 +14,42 @@ fn main() -> anyhow::Result<()> {
     //  - output statistics to stdout
     //  - dry-run
 
-    if std::env::args().any(|arg| arg == "--dry-run") {
-        let folder = std::env::args().nth(2).expect("Please provide a folder");
-        traverse_folder::<DryRunAttributes>(&Path::new(&folder))?;
-    } else {
-        let folder = std::env::args().nth(1).expect("Please provide a folder");
-        traverse_folder::<FileSystemAttributes>(&Path::new(&folder))?;
+    let args = std::env::args().collect::<Vec<_>>();
+
+    // remove the executable name
+    let args: &[String] = &args[1..];
+
+    // command is the first argument
+    let (command, args) = args.split_first().expect("Please provide a command");
+    // folder is the last argument, flags are in between
+    let (folder, flags) = args
+        .split_last()
+        .expect("Please provide a folder to operate on");
+
+    let folder = Path::new(&folder);
+    if !folder.is_dir() {
+        bail!("provided path {folder:?} is not a directory or it does not exist");
+    }
+
+    match command.as_str() {
+        "check" => {
+            let mut is_dry_run = false;
+            for flag in flags {
+                match flag.as_str() {
+                    "--dry-run" => {
+                        is_dry_run = true;
+                    }
+                    _ => bail!("Unknown flag: {}", flag),
+                }
+            }
+
+            if is_dry_run {
+                traverse_folder::<DryRunAttributes>(folder)?;
+            } else {
+                traverse_folder::<FileSystemAttributes>(folder)?;
+            }
+        }
+        _ => bail!("Unknown command: {}", command),
     }
 
     Ok(())
@@ -79,7 +109,6 @@ fn traverse_folder<A: AttributesIO>(folder: &Path) -> anyhow::Result<()> {
                 .any(|ignore| ignore.matched(&path, is_dir).is_ignore())
             {
                 if !is_ignored {
-                    println!("ignoring {:?}", path);
                     A::ignore_file(&path)?;
                 }
 
@@ -148,6 +177,7 @@ fn is_file_ignored(file: &Path) -> Result<bool> {
 
 impl AttributesIO for FileSystemAttributes {
     fn ignore_file(file: &Path) -> Result<()> {
+        println!("ignoring {:?}", file);
         xattr::set(file, Self::XATTR_DROPBOX_IGNORED, b"1")
             .with_context(|| format!("set attribute for {file:?}"))?;
         Ok(())
@@ -157,7 +187,7 @@ impl AttributesIO for FileSystemAttributes {
 struct DryRunAttributes;
 impl AttributesIO for DryRunAttributes {
     fn ignore_file(file: &Path) -> Result<()> {
-        println!("DRYRUN: ignore {:?}", file);
+        println!("DRYRUN: ignoring {:?}", file);
         Ok(())
     }
 }
