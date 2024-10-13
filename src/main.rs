@@ -8,12 +8,6 @@ use anyhow::{bail, Context, Result};
 use ignore::gitignore::Gitignore;
 
 fn main() -> anyhow::Result<()> {
-    // TODO: add command line argument parsing:
-    //  - ignore said file (optional recursive)
-    //  - unignore said file (optional recursive)
-    //  - output statistics to stdout
-    //  - dry-run
-
     let args = std::env::args().collect::<Vec<_>>();
 
     // remove the executable name
@@ -32,26 +26,74 @@ fn main() -> anyhow::Result<()> {
     }
 
     match command.as_str() {
+        "ignore" | "unignore" => {
+            let mut is_recursive = false;
+            let mut is_dry_run = false;
+            for flag in flags {
+                match flag.as_str() {
+                    "--recursive" | "-r" => is_recursive = true,
+                    "--dry-run" => is_dry_run = true,
+                    _ => bail!("Unknown flag: {}", flag),
+                }
+            }
+
+            let action = match (command.as_str(), is_dry_run) {
+                ("ignore", false) => FileSystemAttributes::ignore_file,
+                ("ignore", true) => DryRunAttributes::ignore_file,
+                ("unignore", false) => FileSystemAttributes::unignore_file,
+                ("unignore", true) => DryRunAttributes::unignore_file,
+                _ => unreachable!(),
+            };
+
+            if is_recursive {
+                apply_recursively(folder, action)?;
+            } else {
+                action(folder)?;
+            }
+        }
         "check" => {
             let mut is_dry_run = false;
             for flag in flags {
                 match flag.as_str() {
-                    "--dry-run" => {
-                        is_dry_run = true;
-                    }
+                    "--dry-run" => is_dry_run = true,
                     _ => bail!("Unknown flag: {}", flag),
                 }
             }
 
             if is_dry_run {
-                traverse_folder::<DryRunAttributes>(folder)?;
+                check_folder::<DryRunAttributes>(folder)?;
             } else {
-                traverse_folder::<FileSystemAttributes>(folder)?;
+                check_folder::<FileSystemAttributes>(folder)?;
             }
         }
         _ => bail!("Unknown command: {}", command),
     }
 
+    Ok(())
+}
+
+/// Traverse a folder and apply a function to all files and folders
+fn apply_recursively(folder: &Path, f: fn(&Path) -> Result<()>) -> Result<()> {
+    let folder = std::path::absolute(folder)?;
+    assert!(folder.is_dir());
+
+    let mut todo: VecDeque<PathBuf> = VecDeque::new();
+    todo.push_back(folder);
+
+    while let Some(path) = todo.pop_front() {
+        f(&path)?;
+
+        for entry in path.read_dir()? {
+            let entry = entry?;
+            let path = entry.path();
+
+            f(&path)?;
+
+            if path.is_dir() {
+                todo.push_back(path);
+            }
+        }
+    }
     Ok(())
 }
 
@@ -62,7 +104,10 @@ struct Stats {
     size: u64,
 }
 
-fn traverse_folder<A: AttributesIO>(folder: &Path) -> anyhow::Result<()> {
+/// Check a folder for files and directories that should be ignored by Dropbox, but are not
+/// according to the rules in the .dropboxignore files. If a file is not ignored, it will be
+/// ignored by setting an extended attribute on the file.
+fn check_folder<A: AttributesIO>(folder: &Path) -> anyhow::Result<()> {
     let folder = std::path::absolute(folder)?;
     assert!(folder.is_dir());
     assert!(folder.exists());
@@ -161,7 +206,14 @@ fn traverse_folder<A: AttributesIO>(folder: &Path) -> anyhow::Result<()> {
 /// Trait for reading and writing attributes to a file
 trait AttributesIO {
     /// Set the file to be ignored
-    fn ignore_file(file: &Path) -> Result<()>;
+    fn ignore_file(file: &Path) -> Result<()>
+    where
+        Self: Sized;
+
+    /// Set a file to no longer be ignored
+    fn unignore_file(file: &Path) -> Result<()>
+    where
+        Self: Sized;
 }
 
 struct FileSystemAttributes;
@@ -182,12 +234,22 @@ impl AttributesIO for FileSystemAttributes {
             .with_context(|| format!("set attribute for {file:?}"))?;
         Ok(())
     }
+    fn unignore_file(file: &Path) -> Result<()> {
+        println!("un-ignoring {:?}", file);
+        xattr::remove(file, Self::XATTR_DROPBOX_IGNORED)
+            .with_context(|| format!("remove attribute for {file:?}"))?;
+        Ok(())
+    }
 }
 
 struct DryRunAttributes;
 impl AttributesIO for DryRunAttributes {
     fn ignore_file(file: &Path) -> Result<()> {
         println!("DRYRUN: ignoring {:?}", file);
+        Ok(())
+    }
+    fn unignore_file(file: &Path) -> Result<()> {
+        println!("DRYRUN: un-ignoring {:?}", file);
         Ok(())
     }
 }
