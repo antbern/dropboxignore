@@ -13,12 +13,18 @@ fn main() -> anyhow::Result<()> {
     //  - output statistics to stdout
     //  - dry-run
 
-    let folder = std::env::args().nth(1).expect("Please provide a folder");
-    traverse_folder(&Path::new(&folder))?;
+    if std::env::args().any(|arg| arg == "--dry-run") {
+        let folder = std::env::args().nth(2).expect("Please provide a folder");
+        traverse_folder::<DryRunAttributes>(&Path::new(&folder))?;
+    } else {
+        let folder = std::env::args().nth(1).expect("Please provide a folder");
+        traverse_folder::<FileSystemAttributes>(&Path::new(&folder))?;
+    }
+
     Ok(())
 }
 
-fn traverse_folder(folder: &Path) -> anyhow::Result<()> {
+fn traverse_folder<A: AttributesIO>(folder: &Path) -> anyhow::Result<()> {
     let folder = std::path::absolute(folder)?;
     assert!(folder.is_dir());
     assert!(folder.exists());
@@ -66,7 +72,7 @@ fn traverse_folder(folder: &Path) -> anyhow::Result<()> {
             {
                 if !is_ignored {
                     println!("ignoring {:?}", path);
-                    ignore_file(&path)?;
+                    A::ignore_file(&path)?;
                 }
 
                 // since the file/folder is supposed to be ignored, we don't need to check it's children
@@ -99,15 +105,35 @@ fn traverse_folder(folder: &Path) -> anyhow::Result<()> {
     Ok(())
 }
 
-const XATTR_DROPBOX_IGNORED: &str = "user.com.dropbox.ignored";
+/// Trait for reading and writing attributes to a file
+trait AttributesIO {
+    /// Set the file to be ignored
+    fn ignore_file(file: &Path) -> Result<()>;
+}
+
+struct FileSystemAttributes;
+impl FileSystemAttributes {
+    const XATTR_DROPBOX_IGNORED: &str = "user.com.dropbox.ignored";
+}
+
 fn is_file_ignored(file: &Path) -> Result<bool> {
-    let attr = xattr::get(file, XATTR_DROPBOX_IGNORED)
+    let attr = xattr::get(file, FileSystemAttributes::XATTR_DROPBOX_IGNORED)
         .with_context(|| format!("get attribute for {file:?}"))?;
     Ok(attr.map(|attr| attr == b"1").unwrap_or(false))
 }
 
-fn ignore_file(file: &Path) -> Result<()> {
-    xattr::set(file, XATTR_DROPBOX_IGNORED, b"1")
-        .with_context(|| format!("set attribute for {file:?}"))?;
-    Ok(())
+impl AttributesIO for FileSystemAttributes {
+    fn ignore_file(file: &Path) -> Result<()> {
+        xattr::set(file, Self::XATTR_DROPBOX_IGNORED, b"1")
+            .with_context(|| format!("set attribute for {file:?}"))?;
+        Ok(())
+    }
+}
+
+struct DryRunAttributes;
+impl AttributesIO for DryRunAttributes {
+    fn ignore_file(file: &Path) -> Result<()> {
+        println!("DRYRUN: ignore {:?}", file);
+        Ok(())
+    }
 }
