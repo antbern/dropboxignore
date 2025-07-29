@@ -4,7 +4,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 use ignore::gitignore::Gitignore;
 
 // TODO: add special mode for running in the backgroud, or at least for outputing only the
