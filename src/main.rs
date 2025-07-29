@@ -7,6 +7,8 @@ use std::{
 use anyhow::{bail, Context, Result};
 use ignore::gitignore::Gitignore;
 
+// TODO: add special mode for running in the backgroud, or at least for outputing only the
+// information we want to show in a status bar.
 fn main() -> anyhow::Result<()> {
     let args = std::env::args().collect::<Vec<_>>();
 
@@ -56,17 +58,19 @@ fn main() -> anyhow::Result<()> {
                 bail!("provided path {input_path:?} is not a directory or it does not exist");
             }
             let mut is_dry_run = false;
+            let mut summarize = false;
             for flag in flags {
                 match flag.as_str() {
                     "--dry-run" => is_dry_run = true,
+                    "--summary" => summarize = true,
                     _ => bail!("Unknown flag: {}", flag),
                 }
             }
 
             if is_dry_run {
-                check_folder::<DryRunAttributes>(input_path)?;
+                check_folder::<DryRunAttributes>(input_path, summarize)?;
             } else {
-                check_folder::<FileSystemAttributes>(input_path)?;
+                check_folder::<FileSystemAttributes>(input_path, summarize)?;
             }
         }
         _ => bail!("Unknown command: {}", command),
@@ -105,12 +109,14 @@ struct Stats {
     files: u64,
     directories: u64,
     size: u64,
+    items_ignored: u64,
+    extra_ignored: u64,
 }
 
 /// Check a folder for files and directories that should be ignored by Dropbox, but are not
 /// according to the rules in the .dropboxignore files. If a file is not ignored, it will be
 /// ignored by setting an extended attribute on the file.
-fn check_folder<A: AttributesIO>(folder: &Path) -> anyhow::Result<()> {
+fn check_folder<A: AttributesIO>(folder: &Path, summarize: bool) -> anyhow::Result<()> {
     let folder = std::path::absolute(folder)?;
     assert!(folder.is_dir());
     assert!(folder.exists());
@@ -158,6 +164,7 @@ fn check_folder<A: AttributesIO>(folder: &Path) -> anyhow::Result<()> {
             {
                 if !is_ignored {
                     A::ignore_file(&path)?;
+                    stats.items_ignored += 1;
                 }
 
                 // since the file/folder is supposed to be ignored, we don't need to check it's children
@@ -166,6 +173,7 @@ fn check_folder<A: AttributesIO>(folder: &Path) -> anyhow::Result<()> {
                 //if file is ignored already, should maybe unignore it?
                 //Or should we policy that if a file is ignored, it should stay ignored? (perhaps
                 //easies in the beginning)
+                stats.extra_ignored += 1;
                 println!(
                     "file {:?} is ignored but it should not be according to the rules",
                     path
@@ -202,6 +210,16 @@ fn check_folder<A: AttributesIO>(folder: &Path) -> anyhow::Result<()> {
         stats.size as f64 / 1024.0 / 1024.0,
         stats.size as f64 / 1024.0 / 1024.0 / 1024.0
     );
+
+    if summarize {
+        // print a short summary to stderr
+        eprintln!(
+            "+{} ({}) {:.2}GB",
+            stats.items_ignored,
+            stats.extra_ignored,
+            stats.size as f64 / 1024.0 / 1024.0 / 1024.0
+        );
+    }
 
     Ok(())
 }
