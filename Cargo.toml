@@ -15,7 +15,7 @@ uninlined_format_args = "allow"
 
 [dependencies]
 anyhow = "1.0"
-xattr = { version = "1.5.0", default-features = false, features = ["unsupported"] }
+xattr = { version = "1.5.1", default-features = false, features = ["unsupported"] }
 
 # we really ony care about a subset of this, but for now we need to bring in all the deps of it
 ignore = { version = "0.4", default-features = false }
