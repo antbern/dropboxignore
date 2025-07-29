@@ -10,6 +10,9 @@ categories = ["command-line-utilities", "filesystem"]
 repository = "https://github.com/antbern/dropboxignore"
 readme = "README.md"
 
+[lints.clippy]
+uninlined_format_args = "allow"
+
 [dependencies]
 anyhow = "1.0"
 xattr = { version = "1.5.0", default-features = false, features = ["unsupported"] }
