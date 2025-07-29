@@ -1,7 +1,7 @@
 [package]
 name = "dropboxignore"
 version = "0.1.0"
-edition = "2021"
+edition = "2024"
 license = "MIT"
 description = "A tool to use .dropboxignore files to exclude files from Dropbox syncing"
 authors = ["Anton Berneving"]
